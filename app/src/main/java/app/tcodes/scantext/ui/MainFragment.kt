@@ -1,32 +1,26 @@
 package app.tcodes.scantext.ui
 
 import android.app.Activity
-import android.arch.lifecycle.Observer
-import android.arch.lifecycle.ViewModelProviders
+import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context.CLIPBOARD_SERVICE
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.support.v4.app.Fragment
-import android.support.v4.app.ShareCompat
-import android.support.v4.content.FileProvider
 import android.util.Log
-import android.view.LayoutInflater
-import android.view.Menu
-import android.view.MenuInflater
-import android.view.MenuItem
-import android.view.View
-import android.view.ViewGroup
-import app.tcodes.scantext.BuildConfig
+import android.view.*
+import android.widget.Button
+import android.widget.Toast
+import androidx.core.app.ShareCompat
+import androidx.core.content.ContextCompat.getSystemService
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProviders
 import app.tcodes.scantext.R
-import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.InterstitialAd
-import com.google.android.gms.ads.MobileAds
 import kotlinx.android.synthetic.main.main_fragment.*
 import kotlinx.android.synthetic.main.main_fragment.view.*
-import java.io.File
-import java.io.FileOutputStream
 
 class MainFragment : Fragment() {
 
@@ -36,24 +30,22 @@ class MainFragment : Fragment() {
     }
 
     private lateinit var viewModel: MainViewModel
-    lateinit var mInterstitialAd : InterstitialAd
+    private lateinit var clipboard: ClipboardManager
+    private var clip: ClipData? = null
+    // private lateinit var alertdialog: AlertDialog
+    var isTextEmpty: Boolean = false
+    // var progressBar : ProgressBar? = null
 
     private var bitmap: Bitmap? = null
+    private var result: String? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         val view = inflater.inflate(R.layout.main_fragment, container, false)
         setupView(view)
 
-        MobileAds.initialize(requireActivity().applicationContext, getString(R.string.adsID))
-
-        mInterstitialAd = InterstitialAd(requireActivity().applicationContext)
-        mInterstitialAd.adUnitId = "ca-app-pub-7015642679712581/1559194454"
-        mInterstitialAd.loadAd(AdRequest.Builder()
-               // .addTestDevice("B4D488B978346ED1FC19DFC4AD74E049")
-                .build())
-
         return view
     }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,27 +59,45 @@ class MainFragment : Fragment() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem?): Boolean {
-        val subject = "I extracted this text from an image using Snap Text \nhttps://play.google.com/store/apps/details?id=app.tcodes.scantext"
+        val subject = "I extract text from images using Snap Text \nhttps://play.google.com/store/apps/details?id=app.tcodes.scantext"
         val mimeType = "text/plain"
 
-        if (item?.itemId == R.id.action_share){
+        if (item?.itemId == R.id.action_share) {
             ShareCompat.IntentBuilder.from(requireActivity())
-                    .setText(subject + "\n\n" + textViewResult.text.toString())
+                    .setText(subject)
                     .setType(mimeType)
                     .setChooserTitle(subject)
                     .setSubject(subject)
                     .startChooser()
-                    return true
+            return true
         }
-        if (item?.itemId == R.id.action_upload){
+        if (item?.itemId == R.id.action_upload) {
             val photoGalleryIntent = Intent(Intent.ACTION_PICK, android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
             photoGalleryIntent.type = "image/*"
             startActivityForResult(photoGalleryIntent, READ_REQUEST_CODE)
-            emptyImage.visibility = View.GONE
-            loadAd()
+
+        }
+
+        if (item?.itemId == R.id.action_policy) {
+
+            val builder = AlertDialog.Builder(this@MainFragment.requireContext())
+            //  alertdialog = builder.create()
+
+            val v = LayoutInflater.from(this@MainFragment.requireContext()).inflate(R.layout.policy_dialog, null)
+
+
+            val okay = v.findViewById<Button>(R.id.okay_button)
+            builder.setTitle("Privacy Policy")
+
+            okay.setOnClickListener { builder.create().dismiss() }
+
+            builder.setView(v)
+            builder.show()
+            builder.setCancelable(false)
 
 
         }
+
 
 
         return super.onOptionsItemSelected(item)
@@ -95,25 +105,72 @@ class MainFragment : Fragment() {
     }
 
     //
-    fun loadAd(){
-
-        Handler().postDelayed({
-            kotlin.run {if(mInterstitialAd.isLoaded) {mInterstitialAd.show()}
-            else{ Log.d ("AdError", "The interstitial wasn't loaded yet")} }
-        }, 10000)
-
-    }
 
     private fun setupView(view: View) {
-        view.buttonOCR.setOnClickListener{
-            viewModel.ocrDetection(bitmap)
-            Handler().postDelayed({
-                kotlin.run {if(mInterstitialAd.isLoaded) {mInterstitialAd.show()}
-                else{ Log.d ("AdError", "The interstitial wasn't loaded yet")} }
-            }, 5000)
+        view.buttonOCR.setOnClickListener { it ->
+            if (isTextEmpty) {
+                viewModel.ocrDetection(bitmap)
+                progressBar.visibility = View.VISIBLE
+            }
+
         }
 
+
+
+        view.imageViewSelectedPhoto.setOnClickListener {
+            val photoGalleryIntent = Intent(Intent.ACTION_PICK, android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+            photoGalleryIntent.type = "image/*"
+            startActivityForResult(photoGalleryIntent, READ_REQUEST_CODE)
+
+        }
+
+        view.buttonCopy.setOnClickListener {
+            if (textViewResult.text.isEmpty()) {
+                Toast.makeText(requireContext(), "Text is empty", Toast.LENGTH_LONG).show()
+
+            } else {
+                val clipboard = requireContext().getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("label", textViewResult.text.toString())
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(requireContext(), "Text copied", Toast.LENGTH_LONG).show()
+
+            }
+        }
+
+        view.shareText.setOnClickListener {
+
+
+            if (textViewResult.text.isEmpty()) {
+                Toast.makeText(requireContext(), "Text is empty", Toast.LENGTH_LONG).show()
+
+            } else {
+                val mimeType = "text/plain"
+                ShareCompat.IntentBuilder.from(requireActivity())
+                        .setText(textViewResult.text.toString())
+                        .setType(mimeType)
+                        .startChooser()
+            }
+        }
     }
+
+//    private fun toggleRefresh() {
+//        if (mProgressBar.getVisibility() == View.INVISIBLE) {
+//            mProgressBar.setVisibility(View.VISIBLE)
+//            mRefreshImageView.setVisibility(View.INVISIBLE)
+//
+//            mHourlyButton.setVisibility(View.INVISIBLE)
+//            mDailyButton.setVisibility(View.INVISIBLE)
+//
+//
+//        } else {
+//            mProgressBar.setVisibility(View.INVISIBLE)
+//            mRefreshImageView.setVisibility(View.VISIBLE)
+//
+//            mHourlyButton.setVisibility(View.VISIBLE)
+//            mDailyButton.setVisibility(View.VISIBLE)
+//
+//        }
+//    }
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
@@ -122,8 +179,11 @@ class MainFragment : Fragment() {
             bitmap = it
             view?.imageViewSelectedPhoto?.setImageBitmap(it)
         })
-        viewModel.textResult.observe(this, Observer { it ->
+        viewModel.textResult.observe(this, Observer {
             view?.textViewResult?.text = it
+            progressBar.visibility = View.INVISIBLE
+            buttonCopy.visibility = View.VISIBLE
+            shareText.visibility = View.VISIBLE
         })
 
     }
@@ -134,34 +194,21 @@ class MainFragment : Fragment() {
                 val uri = resultData.data
                 Log.i("MainFragment", "Uri: " + uri!!.toString())
                 showImage(uri)
+                isTextEmpty = true
+                textViewResult.visibility = View.VISIBLE
+                textViewResult.text = ""
+                emptyImage.visibility = View.GONE
+                imageEmpty.visibility = View.GONE
+
             }
         }
     }
 
+//
+
     private fun showImage(uri: Uri) {
         bitmap = BitmapUtils.loadBitmap(requireContext(), uri)
         view?.imageViewSelectedPhoto?.setImageBitmap(bitmap)
-    }
-
-    private fun shareImage() {
-        val cachePath = File(requireActivity().cacheDir, "images")
-        cachePath.mkdirs()
-        val imagePath = File(requireActivity().cacheDir, "images/temp_image.png")
-        val stream = FileOutputStream(imagePath) // overwrites this image every time
-        bitmap?.compress(Bitmap.CompressFormat.PNG, 100, stream)
-        stream.close()
-
-        val contentUri = FileProvider.getUriForFile(requireContext(), BuildConfig.APPLICATION_ID + ".fileprovider", imagePath)
-
-        if (contentUri != null) {
-            val shareIntent = Intent()
-            shareIntent.action = Intent.ACTION_SEND
-            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) // temp permission for receiving app to read this file
-            shareIntent.setDataAndType(contentUri, requireActivity().contentResolver.getType(contentUri))
-            shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri)
-            shareIntent.putExtra(Intent.EXTRA_TEXT,textViewResult.text)
-            startActivity(Intent.createChooser(shareIntent, getString(R.string.choose_an_app)))
-        }
     }
 
 }

@@ -1,10 +1,8 @@
 package app.tcodes.scantext
 
 import android.os.Bundle
-import android.support.v7.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatActivity
 import app.tcodes.scantext.ui.MainFragment
-
-
 
 class MainActivity : AppCompatActivity() {
 
@@ -16,12 +14,6 @@ class MainActivity : AppCompatActivity() {
             supportFragmentManager.beginTransaction()
                 .replace(R.id.container, MainFragment.newInstance())
                 .commit()
-
-
         }
-
     }
-
-
-
 }

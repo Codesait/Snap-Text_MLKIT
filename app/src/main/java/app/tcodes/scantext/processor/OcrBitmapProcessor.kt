@@ -17,7 +17,7 @@ class OcrBitmapProcessor {
         val canvas = Canvas(temporaryBitmap)
         canvas.drawBitmap(bitmap, 0f, 0f, null)
 
-        val blocks = visionText?.blocks ?: return temporaryBitmap
+        val blocks = visionText?.textBlocks ?: return temporaryBitmap
         for (text in blocks) {
             canvas.withSave {
                 drawRoundRect(RectF(text.boundingBox), 0f, 0f, rectPaint )

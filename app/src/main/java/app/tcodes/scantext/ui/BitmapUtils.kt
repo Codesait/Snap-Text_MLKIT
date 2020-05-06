@@ -110,10 +110,10 @@ object BitmapUtils {
         var bitmap = Bitmap.createScaledBitmap(
             when {
                 imageUri != null -> BitmapFactory.decodeStream(
-                    context.contentResolver.openInputStream(imageUri),
-                    null,
-                    decodeOptions
-                )
+                        context.contentResolver.openInputStream(imageUri),
+                        null,
+                        decodeOptions
+                )!!
                 resourceId != null -> BitmapFactory.decodeResource(context.resources, resourceId, decodeOptions)
                 else -> throw Exception("Unexpected exception in loadBitmapImage.")
             },
@@ -124,7 +124,7 @@ object BitmapUtils {
         if (imageUri != null) {
             bitmap = ExifUtil.rotateBitmap(
                 bitmap,
-                ExifUtil.getOrientation(context.contentResolver.openInputStream(imageUri))
+                ExifUtil.getOrientation(context.contentResolver.openInputStream(imageUri)!!)
             )
         }
         return bitmap
